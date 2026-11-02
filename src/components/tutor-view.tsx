@@ -77,6 +77,8 @@ export function TutorView() {
     if (!content || !activeId || busy) return;
     setText("");
     setBusy(true);
+    // Let React paint the "Thinking…" state before WASM blocks the thread.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     try {
       const ctx = await prepareTutorContext({ data: { subjectId: activeId, content } });
       const reply = await localTutorReply({

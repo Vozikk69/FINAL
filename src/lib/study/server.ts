@@ -563,6 +563,43 @@ export const saveTutorExchange = createServerFn({ method: "POST" })
     return { user: userMessage, assistant };
   });
 
+/** Turn an assistant reply into a flashcard without calling any external AI. */
+function cardFromReplyText(content: string): { front: string; back: string } {
+  const cleaned = content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\r/g, "")
+    .trim();
+  if (!cleaned) throw new Error("That reply is empty.");
+
+  // Prefer a closing check-your-understanding question as the front.
+  const lines = cleaned.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  let front = "";
+  let back = cleaned;
+
+  const questionLine = [...lines].reverse().find((l) => /\?\s*$/.test(l) && l.length < 220);
+  if (questionLine) {
+    front = questionLine.replace(/^[-*•\d.)\s]+/, "").trim();
+    back = cleaned.replace(questionLine, "").trim();
+  }
+
+  if (!front) {
+    // First sentence as a prompt-style front
+    const sentence = cleaned.split(/(?<=[.!?])\s+/)[0]?.trim() ?? cleaned;
+    front = sentence.length > 12 && sentence.length < 220
+      ? (sentence.endsWith("?") ? sentence : `What is the key idea: ${sentence.slice(0, 160)}`)
+      : `Summarize: ${cleaned.slice(0, 120).trim()}…`;
+    back = cleaned;
+  }
+
+  // If back is basically the same as front, use fuller text
+  if (back.length < 20) back = cleaned;
+
+  front = front.slice(0, 300).trim();
+  back = back.slice(0, 800).trim();
+  if (!front || !back) throw new Error("Could not make a card from that reply.");
+  return { front, back };
+}
+
 export const cardFromReply = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { messageId: string }) => {
@@ -577,8 +614,18 @@ export const cardFromReply = createServerFn({ method: "POST" })
     `;
     const message = rows[0];
     if (!message || message.role !== "assistant") throw new Error("That reply is not on your desk.");
-    const { extractCard } = await import("@/lib/study/ai.server");
-    const card = await extractCard(message.content);
+
+    // Prefer local/offline extraction. Only use cloud AI when XAI_API_KEY is set
+    // and local parsing produces a weak card.
+    let card = cardFromReplyText(message.content);
+    if (process.env.XAI_API_KEY) {
+      try {
+        const { extractCard } = await import("@/lib/study/ai.server");
+        card = await extractCard(message.content);
+      } catch {
+        // keep local card
+      }
+    }
     return insertCard(sql, context.userId, message.subject_id, card.front, card.back);
   });
 
