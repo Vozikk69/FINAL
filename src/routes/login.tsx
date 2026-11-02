@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { GROK_PROVIDERS, authClient, signIn } from "@/lib/auth/client";
-import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
+import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { BootScreen } from "@/components/app-shell";
 import { Button, Field, fieldClass } from "@/components/ui";
@@ -37,7 +36,8 @@ function LoginPage() {
         setError(result.error.message || "Could not sign in.");
         return;
       }
-      await navigate({ to: "/" });
+      // Full reload so session cookie is picked up cleanly
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
@@ -60,51 +60,45 @@ function LoginPage() {
       <section className="flex items-center justify-center px-5 py-10">
         <div className="w-full max-w-sm">
           <p className="font-display text-4xl lg:hidden">Lumen</p>
-          <h1 className="mt-3 font-display text-4xl leading-none">{mode === "up" ? "Open a desk" : "Welcome back"}</h1>
+          <h1 className="mt-3 font-display text-4xl leading-none">
+            {mode === "up" ? "Open a desk" : "Welcome back"}
+          </h1>
           <p className="mt-2 text-sm text-mute">Your notes, cards, and streak stay on this account.</p>
-          <div className="mt-6 flex flex-col gap-2">
-            {GROK_PROVIDERS.map((provider) => (
-              <Button
-                key={provider.providerId}
-                variant="line"
-                onClick={() => signIn(provider.providerId, { callbackURL: "/" })}
-              >
-                Continue with {provider.label}
-              </Button>
-            ))}
-          </div>
-          {emailAndPasswordEnabled && (
-            <>
-              <p className="my-4 text-center text-xs tracking-wide text-mute uppercase">or use email</p>
-              <form className="flex flex-col gap-3" onSubmit={onSubmit}>
-                {mode === "up" && (
-                  <Field label="Name">
-                    <input name="name" required autoComplete="name" className={fieldClass} />
-                  </Field>
-                )}
-                <Field label="Email">
-                  <input name="email" type="email" required autoComplete="email" className={fieldClass} />
-                </Field>
-                <Field label="Password">
-                  <input name="password" type="password" required minLength={8} autoComplete={mode === "up" ? "new-password" : "current-password"} className={fieldClass} />
-                </Field>
-                {error && <p className="text-sm text-coral">{error}</p>}
-                <Button type="submit" disabled={busy}>
-                  {busy ? "One moment…" : mode === "up" ? "Create account" : "Sign in"}
-                </Button>
-              </form>
-              <button
-                type="button"
-                className="mt-4 min-h-11 text-sm text-mute hover:text-parchment"
-                onClick={() => {
-                  setMode(mode === "up" ? "in" : "up");
-                  setError("");
-                }}
-              >
-                {mode === "up" ? "Already have a desk? Sign in" : "New here? Create an account"}
-              </button>
-            </>
-          )}
+
+          <form className="mt-6 flex flex-col gap-3" onSubmit={onSubmit}>
+            {mode === "up" && (
+              <Field label="Name">
+                <input name="name" required autoComplete="name" className={fieldClass} />
+              </Field>
+            )}
+            <Field label="Email">
+              <input name="email" type="email" required autoComplete="email" className={fieldClass} />
+            </Field>
+            <Field label="Password">
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete={mode === "up" ? "new-password" : "current-password"}
+                className={fieldClass}
+              />
+            </Field>
+            {error && <p className="text-sm text-coral">{error}</p>}
+            <Button type="submit" disabled={busy}>
+              {busy ? "One moment…" : mode === "up" ? "Create account" : "Sign in"}
+            </Button>
+          </form>
+          <button
+            type="button"
+            className="mt-4 min-h-11 text-sm text-mute hover:text-parchment"
+            onClick={() => {
+              setMode(mode === "up" ? "in" : "up");
+              setError("");
+            }}
+          >
+            {mode === "up" ? "Already have a desk? Sign in" : "New here? Create an account"}
+          </button>
         </div>
       </section>
     </main>
