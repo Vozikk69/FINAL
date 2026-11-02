@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "@fontsource/figtree/latin-400.css";
+@import "@fontsource/figtree/latin-500.css";
+@import "@fontsource/figtree/latin-600.css";
+@import "@fontsource/figtree/latin-700.css";
+@import "@fontsource/fraunces/latin-500.css";
+@import "@fontsource/fraunces/latin-600.css";
+
+@theme {
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
+
+  --color-ink: #101416;
+  --color-panel: #1c2428;
+  --color-line: #2e3a40;
+  --color-parchment: #f3eadc;
+  --color-mute: #a3988a;
+  --color-brass: #e2a23a;
+  --color-brass-deep: #c48422;
+  --color-on-brass: #1c1408;
+  --color-sage: #8fceb0;
+  --color-coral: #e48972;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+  --radius-xl: 1.6rem;
+}
+
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-ink);
+    color: var(--color-parchment);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  input,
+  textarea,
+  select {
+    color-scheme: dark;
+  }
+  ::selection {
+    background: var(--color-brass);
+    color: var(--color-on-brass);
+  }
+}
+
+.tutor-md p {
+  margin: 0.55em 0;
+}
+.tutor-md ul,
+.tutor-md ol {
+  margin: 0.4em 0;
+  padding-left: 1.2em;
+}
+.tutor-md ul {
+  list-style: disc;
+}
+.tutor-md ol {
+  list-style: decimal;
+}
+.tutor-md strong {
+  font-weight: 650;
+}
+.tutor-md code {
+  border-radius: 0.35rem;
+  background: var(--color-ink);
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.tutor-md pre {
+  overflow-x: auto;
+  border-radius: 0.7rem;
+  background: var(--color-ink);
+  padding: 0.8rem 1rem;
+}
+.tutor-md pre code {
+  padding: 0;
+  background: transparent;
+}
+.tutor-md a {
+  color: var(--color-brass);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.card-scene {
+  perspective: 1200px;
+}
+.card-inner {
+  position: relative;
+  min-height: 18rem;
+  transform-style: preserve-3d;
+  transition: transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+.card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+}
+.card-back {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-inner {
+    transition: none;
+  }
+}
+
+.dock {
+  padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
+}
