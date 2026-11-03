@@ -821,7 +821,7 @@ export const ingestNote = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { subjectId: string; name: string; mime?: string; base64: string }) => {
     if (!input.subjectId || !input.name || !input.base64) throw new Error("Choose a file.");
-    if (input.base64.length > 100_000_000) throw new Error("File is larger than 4 MB.");
+    if (input.base64.length > 8_000_000) throw new Error("File is larger than 4 MB.");
     return { subjectId: input.subjectId, name: input.name.slice(0, 180), mime: input.mime ?? "", base64: input.base64 };
   })
   .handler(async ({ context, data }) => {
