@@ -25,7 +25,7 @@ export function PlanView() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
 
-  if (query.isLoading || !query.data) return <p className="text-mute">Opening the plan…</p>;
+  if (query.isLoading || !query.data) return <p className="text-mute">Loading plan…</p>;
   const data = query.data;
   const subjects = data.subjects;
   const activeId = subjectId || subjects[0]?.id || "";
@@ -43,7 +43,7 @@ export function PlanView() {
     <div className="flex flex-col gap-6">
       <header>
         <p className="text-sm text-mute">Plan</p>
-        <h1 className="font-display text-5xl leading-none">From here to the exam</h1>
+        <h1 className="font-display text-3xl leading-none">Exam plan</h1>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">

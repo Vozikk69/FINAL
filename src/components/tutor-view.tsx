@@ -70,7 +70,7 @@ export function TutorView() {
     };
   }, [useLocal]);
 
-  if (query.isLoading || !query.data) return <p className="text-mute">Opening the tutor…</p>;
+  if (query.isLoading || !query.data) return <p className="text-mute">Loading tutor…</p>;
 
   async function sendLocal() {
     const content = text.trim();
@@ -131,7 +131,7 @@ export function TutorView() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-mute">Tutor</p>
-          <h1 className="font-display text-5xl leading-none">Ask the notes</h1>
+          <h1 className="font-display text-3xl leading-none">AI Tutor</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {subjects.length > 0 && (
@@ -198,7 +198,7 @@ export function TutorView() {
       ) : noteCount === 0 && messages.length === 0 ? (
         <Panel className="p-6 text-center">
           <p className="text-mute">
-            Upload notes on the desk so the tutor can ground answers in your material. You can still ask general questions.
+            Upload notes for this subject so the tutor can use them. You can still ask general questions.
           </p>
         </Panel>
       ) : null}

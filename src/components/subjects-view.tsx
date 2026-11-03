@@ -75,7 +75,7 @@ export function SubjectsView() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-mute">Subjects</p>
-          <h1 className="font-display text-5xl leading-none">What you are sitting</h1>
+          <h1 className="font-display text-3xl leading-none">Subjects</h1>
         </div>
         <Button
           onClick={() => {
@@ -90,7 +90,7 @@ export function SubjectsView() {
       {data.subjects.length === 0 ? (
         <Panel className="p-6">
           <h2 className="font-display text-3xl">No subjects yet</h2>
-          <p className="mt-2 text-sm text-mute">A subject holds the exam date, the notes, the cards, and the plan.</p>
+          <p className="mt-2 text-sm text-mute">Each subject has its own notes, cards, plan, and exam date.</p>
         </Panel>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
@@ -118,7 +118,7 @@ export function SubjectsView() {
             <Panel className="p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-4xl leading-none">{selected.title}</h2>
+                  <h2 className="font-display text-2xl leading-none">{selected.title}</h2>
                   <p className="mt-2 max-w-2xl text-sm text-mute">{selected.description || "No description yet."}</p>
                 </div>
                 <div className="flex gap-2">

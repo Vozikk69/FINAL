@@ -111,7 +111,7 @@ function buildPrompt(input: {
         .join("\n\n")
     : "No notes matched this question.";
 
-  const system = `You are Lumen, a calm university study tutor for "${input.subjectTitle}".
+  const system = `You are Lumen, a study tutor for "${input.subjectTitle}".
 ${input.description ? `Subject: ${input.description.slice(0, 300)}` : ""}
 Rules:
 - Be concrete and short (under 120 words). No pep talks or filler.

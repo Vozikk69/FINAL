@@ -39,7 +39,7 @@ export function BootScreen() {
       <div className="flex flex-col items-center gap-3">
         <Mark className="size-10 text-brass" />
         <p className="font-display text-4xl">Lumen</p>
-        <p className="text-sm text-mute">Opening your desk…</p>
+        <p className="text-sm text-mute">Loading…</p>
       </div>
     </div>
   );
@@ -134,7 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Mark className="size-7 text-brass" />
             <span className="font-display text-3xl leading-none">Lumen</span>
           </Link>
-          <p className="mt-1 px-2 text-xs text-mute">A desk for the long night.</p>
+          <p className="mt-1 px-2 text-xs text-mute">Study workspace</p>
           <nav className="mt-6 flex flex-col gap-1">
             {NAV.map((item) => {
               const active = item.to === "/" ? path === "/" : path === item.to;

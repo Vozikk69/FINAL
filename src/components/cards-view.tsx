@@ -24,7 +24,7 @@ export function CardsView({ startReview }: { startReview: boolean }) {
   const [composer, setComposer] = useState<"add" | "generate" | null>(null);
   const [editing, setEditing] = useState<Flashcard | null>(null);
 
-  if (query.isLoading || !query.data) return <p className="text-mute">Shuffling the deck…</p>;
+  if (query.isLoading || !query.data) return <p className="text-mute">Loading cards…</p>;
   const data = query.data;
   const filtered = data.flashcards.filter((card) => subjectId === "all" || card.subjectId === subjectId);
   const due = getDueCards(filtered);
@@ -58,7 +58,7 @@ export function CardsView({ startReview }: { startReview: boolean }) {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-mute">Cards</p>
-          <h1 className="font-display text-5xl leading-none">Remember it later</h1>
+          <h1 className="font-display text-3xl leading-none">Flashcards</h1>
           <p className="mt-2 text-sm text-mute">{due.length} due · spaced with SM-2</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -87,7 +87,7 @@ export function CardsView({ startReview }: { startReview: boolean }) {
 
       {filtered.length === 0 ? (
         <Panel className="p-6">
-          <h2 className="font-display text-3xl">{subjects.length ? "This deck is empty" : "Add a subject first"}</h2>
+          <h2 className="font-display text-3xl">{subjects.length ? "No cards yet" : "Add a subject first"}</h2>
           <p className="mt-2 text-sm text-mute">Write a card, generate some from your notes, or save one from the tutor.</p>
         </Panel>
       ) : (
@@ -196,7 +196,7 @@ function ReviewSession({
     return (
       <Panel className="mx-auto max-w-xl p-8 text-center">
         <Check className="mx-auto size-8 text-sage" />
-        <h2 className="mt-3 font-display text-4xl">Review complete</h2>
+        <h2 className="mt-3 font-display text-2xl">Session complete</h2>
         <p className="mt-2 text-sm text-mute">
           {queue.length} {queue.length === 1 ? "card" : "cards"}. The next dates are already set.
         </p>

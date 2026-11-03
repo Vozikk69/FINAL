@@ -63,7 +63,7 @@ export async function tutorReply(input: {
   const notes = input.context.length
     ? input.context.map((chunk, index) => `[${index + 1}] (${chunk.source})\n${chunk.text}`).join("\n\n")
     : "No notes were uploaded, or none matched this question.";
-  const system = `You are Lumen, a calm university study tutor for "${input.subjectTitle}".
+  const system = `You are Lumen, a study tutor for "${input.subjectTitle}".
 ${input.description ? `Subject notes from the student: ${input.description}` : ""}
 Rules:
 - Be concrete and short. No pep talks, no "certainly", no filler openings.

@@ -24,12 +24,12 @@ export function DeskView() {
   useEffect(() => setMounted(true), []);
 
   if (query.isLoading || !query.data) {
-    return <p className="text-mute">Gathering the desk…</p>;
+    return <p className="text-mute">Loading…</p>;
   }
   if (query.isError) {
     return (
       <Panel className="p-6">
-        <p>Could not open your desk.</p>
+        <p>Could not load workspace.</p>
         <Button className="mt-4" onClick={() => query.refetch()}>
           Try again
         </Button>
@@ -55,7 +55,7 @@ export function DeskView() {
     try {
       await seedDesk();
       await refresh();
-      toast.success("Sample desk is on the table");
+      toast.success("Sample data loaded");
     } catch (error) {
       toast.error(errText(error));
     } finally {
@@ -67,8 +67,8 @@ export function DeskView() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-mute">Your desk</p>
-          <h1 className="font-display text-5xl leading-none text-parchment">Lumen</h1>
+          <p className="text-sm text-mute">Dashboard</p>
+          <h1 className="font-display text-3xl leading-none text-parchment">Lumen</h1>
           <p className="mt-2 max-w-xl text-sm text-mute">
             {nextExam
               ? `${nextExam.subject.title} is ${nextExam.days === 0 ? "today" : `in ${nextExam.days} day${nextExam.days === 1 ? "" : "s"}`}.`
@@ -83,16 +83,16 @@ export function DeskView() {
 
       {data.subjects.length === 0 && (
         <Panel className="p-6">
-          <h2 className="font-display text-3xl">Nothing on the desk yet</h2>
+          <h2 className="font-display text-3xl">No subjects yet</h2>
           <p className="mt-2 max-w-xl text-sm text-mute">
-            Add a subject, or borrow a sample term so you can see the streak, the cards, and a plan already in motion.
+            Add a subject to get started, or load sample data to explore the app.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link to="/subjects" className="inline-flex min-h-11 items-center rounded-md bg-brass px-4 text-sm font-semibold text-on-brass">
               Add a subject
             </Link>
             <Button variant="line" disabled={seeding} onClick={loadSample}>
-              {seeding ? "Setting the table…" : "Load a sample desk"}
+              {seeding ? "Loading sample…" : "Load sample data"}
             </Button>
           </div>
         </Panel>
@@ -117,7 +117,7 @@ export function DeskView() {
           }
           meter={readiness.score}
         />
-        <Stat icon={<Layers className="size-4 text-sage" />} label="Cards due" value={String(due.length)} hint={due.length ? "Waiting on the desk" : "Nothing overdue"} />
+        <Stat icon={<Layers className="size-4 text-sage" />} label="Cards due" value={String(due.length)} hint={due.length ? "Due for review" : "Nothing overdue"} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
@@ -224,7 +224,7 @@ function Stat({
         {icon}
         {label}
       </div>
-      <p className="mt-2 font-display text-4xl leading-none tabular-nums">{value}</p>
+      <p className="mt-2 font-display text-2xl leading-none tabular-nums">{value}</p>
       <p className="mt-2 text-xs text-mute">{hint}</p>
       {meter !== undefined && (
         <div className="mt-3">

@@ -16,7 +16,7 @@ export const Route = createRootRoute({
         name: "description",
         content: "Lumen is a study desk: a tutor for your notes, spaced-repetition cards, and a plan to the exam.",
       },
-      { name: "theme-color", content: "#101416" },
+      { name: "theme-color", content: "#0f1419" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

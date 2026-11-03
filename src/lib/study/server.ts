@@ -44,7 +44,7 @@ async function db() {
 
 async function assertSubject(sql: Sql, userId: string, subjectId: string) {
   const rows = await sql<{ id: string }>`select id from subjects where id = ${subjectId} and user_id = ${userId}`;
-  if (!rows.length) throw new Error("That subject is not on your desk.");
+  if (!rows.length) throw new Error("Subject not found.");
 }
 
 async function saveChunks(sql: Sql, userId: string, subjectId: string, name: string, text: string) {
@@ -405,7 +405,7 @@ export const sendTutorMessage = createServerFn({ method: "POST" })
       select title, description from subjects where id = ${data.subjectId} and user_id = ${userId}
     `;
     const subject = subjects[0];
-    if (!subject) throw new Error("That subject is not on your desk.");
+    if (!subject) throw new Error("Subject not found.");
     const history = await sql<{ role: string; content: string }>`
       select role, content from chat_messages
       where user_id = ${userId} and subject_id = ${data.subjectId}
@@ -489,7 +489,7 @@ export const prepareTutorContext = createServerFn({ method: "POST" })
       select title, description from subjects where id = ${data.subjectId} and user_id = ${userId}
     `;
     const subject = subjects[0];
-    if (!subject) throw new Error("That subject is not on your desk.");
+    if (!subject) throw new Error("Subject not found.");
     const history = await sql<{ role: string; content: string }>`
       select role, content from chat_messages
       where user_id = ${userId} and subject_id = ${data.subjectId}
@@ -563,40 +563,91 @@ export const saveTutorExchange = createServerFn({ method: "POST" })
     return { user: userMessage, assistant };
   });
 
-/** Turn an assistant reply into a flashcard without calling any external AI. */
+/** Turn an assistant reply into a proper Q→A flashcard (offline, no API). */
 function cardFromReplyText(content: string): { front: string; back: string } {
-  const cleaned = content
+  let cleaned = content
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/\r/g, "")
+    .replace(/\*\*/g, "")
     .trim();
   if (!cleaned) throw new Error("That reply is empty.");
 
-  // Prefer a closing check-your-understanding question as the front.
-  const lines = cleaned.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const lines = cleaned
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.replace(/^[-*•]\s+/, "").replace(/^\d+[.)]\s+/, ""));
+
+  // 1) Prefer a short closing check-question as the front.
   let front = "";
-  let back = cleaned;
-
-  const questionLine = [...lines].reverse().find((l) => /\?\s*$/.test(l) && l.length < 220);
-  if (questionLine) {
-    front = questionLine.replace(/^[-*•\d.)\s]+/, "").trim();
-    back = cleaned.replace(questionLine, "").trim();
+  let backBody = cleaned;
+  const qIdx = [...lines]
+    .map((l, i) => ({ l, i }))
+    .reverse()
+    .find(({ l }) => /\?\s*$/.test(l) && l.length >= 12 && l.length <= 180);
+  if (qIdx) {
+    front = qIdx.l;
+    backBody = lines.filter((_, i) => i !== qIdx.i).join("\n").trim();
   }
 
+  // 2) Otherwise build a real question from a definition-like first sentence.
+  //    "An alkane is a saturated hydrocarbon..." → "What is an alkane?"
   if (!front) {
-    // First sentence as a prompt-style front
-    const sentence = cleaned.split(/(?<=[.!?])\s+/)[0]?.trim() ?? cleaned;
-    front = sentence.length > 12 && sentence.length < 220
-      ? (sentence.endsWith("?") ? sentence : `What is the key idea: ${sentence.slice(0, 160)}`)
-      : `Summarize: ${cleaned.slice(0, 120).trim()}…`;
-    back = cleaned;
+    const first = (lines[0] ?? cleaned).split(/(?<=[.!])\s+/)[0]?.trim() ?? "";
+    const def =
+      first.match(
+        /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are|was|were)\b/i,
+      ) ||
+      first.match(
+        /^([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are|was|were)\b/i,
+      );
+    if (def) {
+      const term = def[1];
+      const article = /^[aeiou]/i.test(term) ? "an" : "a";
+      front = `What is ${article} ${term}?`;
+      backBody = cleaned;
+    } else if (first.endsWith("?")) {
+      front = first;
+      backBody = cleaned.slice(first.length).trim() || cleaned;
+    } else {
+      // Generic but NOT "key idea: <answer>"
+      const topic = first.replace(/[.!]+$/, "").slice(0, 80).trim();
+      front = topic ? `Explain: ${topic}?`.replace("??", "?") : "What is the main point of this note?";
+      backBody = cleaned;
+    }
   }
 
-  // If back is basically the same as front, use fuller text
-  if (back.length < 20) back = cleaned;
+  // Strip the front question from the back if it was left in.
+  if (front) {
+    backBody = backBody
+      .split("\n")
+      .filter((l) => l.trim() !== front.trim())
+      .join("\n")
+      .trim();
+  }
 
-  front = front.slice(0, 300).trim();
+  // Never put the answer text into the front.
+  let back = backBody.replace(/\n{3,}/g, "\n\n").trim();
+  if (!back || back.length < 8) back = cleaned;
+  // If front accidentally equals / contains most of back, force a short question form.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (norm(front).includes(norm(back).slice(0, 40)) || norm(back).startsWith(norm(front).replace(/^what is (an?|the)\s+/i, ""))) {
+    // keep front as question only; back stays full explanation
+  }
+  if (front.length > 120 && !front.endsWith("?")) {
+    front = `What should you remember about this?`;
+  }
+
+  front = front.slice(0, 220).trim();
   back = back.slice(0, 800).trim();
   if (!front || !back) throw new Error("Could not make a card from that reply.");
+  // Final guard: front must not be a near-copy of the back.
+  if (norm(front) === norm(back) || (back.startsWith(front.replace(/^What is the key idea:\s*/i, "")) && front.length > 40)) {
+    const termMatch = back.match(
+      /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are)\b/i,
+    );
+    front = termMatch ? `What is ${/^[aeiou]/i.test(termMatch[1]) ? "an" : "a"} ${termMatch[1]}?` : "What is the main idea?";
+  }
   return { front, back };
 }
 
@@ -613,7 +664,7 @@ export const cardFromReply = createServerFn({ method: "POST" })
       where id = ${data.messageId} and user_id = ${context.userId}
     `;
     const message = rows[0];
-    if (!message || message.role !== "assistant") throw new Error("That reply is not on your desk.");
+    if (!message || message.role !== "assistant") throw new Error("Reply not found.");
 
     // Prefer local/offline extraction. Only use cloud AI when XAI_API_KEY is set
     // and local parsing produces a weak card.
@@ -642,7 +693,7 @@ export const generateFlashcards = createServerFn({ method: "POST" })
     const subjects = await sql<{ title: string }>`
       select title from subjects where id = ${data.subjectId} and user_id = ${userId}
     `;
-    if (!subjects[0]) throw new Error("That subject is not on your desk.");
+    if (!subjects[0]) throw new Error("Subject not found.");
     const chunks = await sql<{ content: string }>`
       select content from note_chunks where user_id = ${userId} and subject_id = ${data.subjectId} order by position asc limit 40
     `;
@@ -683,7 +734,7 @@ export const generatePlan = createServerFn({ method: "POST" })
       select title, description from subjects where id = ${data.subjectId} and user_id = ${userId}
     `;
     const subject = subjects[0];
-    if (!subject) throw new Error("That subject is not on your desk.");
+    if (!subject) throw new Error("Subject not found.");
     const { generateStudyPlan } = await import("@/lib/study/ai.server");
     const plan = await generateStudyPlan({
       title: subject.title,
