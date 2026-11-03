@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Trash2, Cpu, Download } from "lucide-react";
+import { Send, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Panel, fieldClass, selectClass } from "@/components/ui";
 import {
@@ -133,10 +133,6 @@ export function TutorView() {
               </select>
             </label>
           )}
-          <span className="flex items-center gap-2 text-sm text-mute" title="Runs in this browser; no API key or cloud AI is used.">
-            <Cpu className="size-4" />
-            Local AI · no API
-          </span>
         </div>
       </header>
 
@@ -188,8 +184,8 @@ export function TutorView() {
           <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <p className="text-xs text-mute">
               {modelStatus === "ready"
-                ? "Running locally with Transformers.js · Qwen1.5-0.5B"
-                : "Local model loading…"}
+                ? "Tutor ready"
+                : "Preparing tutor…"}
             </p>
             {messages.length > 0 && (
               <button
