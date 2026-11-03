@@ -4,13 +4,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Send, Trash2, Cpu, Download } from "lucide-react";
 import { toast } from "sonner";
-import { Button, Panel, fieldClass } from "@/components/ui";
+import { Button, Panel, fieldClass, selectClass } from "@/components/ui";
 import {
   cardFromReply,
   clearChat,
   prepareTutorContext,
   saveTutorExchange,
-  sendTutorMessage,
 } from "@/lib/study/server";
 import { errText, useDesk, useRefreshDesk } from "@/lib/study/use-desk";
 import {
@@ -26,7 +25,6 @@ export function TutorView() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [useLocal, setUseLocal] = useState(true);
   const [modelProgress, setModelProgress] = useState(0);
   const [modelStatus, setModelStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [modelError, setModelError] = useState<string | null>(null);
@@ -41,13 +39,13 @@ export function TutorView() {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [messages.length, busy]);
 
-  // Preload local model when the tutor tab is opened and local mode is on
+  // Download and initialize the local model on opening the tutor.
   useEffect(() => {
-    if (!useLocal) return;
     let cancelled = false;
     (async () => {
       try {
         setModelStatus("loading");
+        setModelError(null);
         await loadLocalTutor((p, status) => {
           if (cancelled) return;
           setModelProgress(p);
@@ -60,15 +58,16 @@ export function TutorView() {
       } catch (err) {
         if (!cancelled) {
           setModelStatus("error");
-          setModelError(err instanceof Error ? err.message : String(err));
-          toast.error("Local model failed to load — falling back to cloud tutor when available.");
+          const msg = err instanceof Error ? err.message : String(err);
+          setModelError(msg);
+          toast.error("Local model could not start. Open the app in a regular browser tab and try again.");
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [useLocal]);
+  }, []);
 
   if (query.isLoading || !query.data) return <p className="text-mute">Loading tutor…</p>;
 
@@ -100,29 +99,13 @@ export function TutorView() {
     }
   }
 
-  async function sendCloud() {
-    const content = text.trim();
-    if (!content || !activeId || busy) return;
-    setText("");
-    setBusy(true);
-    try {
-      await sendTutorMessage({ data: { subjectId: activeId, content } });
-      await refresh();
-    } catch (error) {
-      setText(content);
-      toast.error(errText(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function send() {
-    if (useLocal && (isLocalAiReady() || modelStatus === "ready")) {
+    if (modelStatus === "ready" || isLocalAiReady()) {
       await sendLocal();
-    } else if (useLocal && modelStatus === "loading") {
+    } else if (modelStatus === "loading") {
       toast.message("Still downloading the local model… try again in a moment.");
     } else {
-      await sendCloud();
+      toast.message("The local model is not ready yet. Check the model status above.");
     }
   }
 
@@ -138,7 +121,7 @@ export function TutorView() {
             <label className="text-sm text-mute">
               Subject
               <select
-                className={`${fieldClass} mt-1 min-w-48`}
+                className={`${selectClass} mt-1 min-w-48`}
                 value={activeId}
                 onChange={(event) => setSubjectId(event.target.value)}
               >
@@ -150,20 +133,14 @@ export function TutorView() {
               </select>
             </label>
           )}
-          <label className="flex items-center gap-2 text-sm text-mute">
-            <input
-              type="checkbox"
-              checked={useLocal}
-              onChange={(e) => setUseLocal(e.target.checked)}
-              className="size-4 accent-brass"
-            />
+          <span className="flex items-center gap-2 text-sm text-mute" title="Runs in this browser; no API key or cloud AI is used.">
             <Cpu className="size-4" />
-            Local AI (Transformers.js)
-          </label>
+            Local AI · no API
+          </span>
         </div>
       </header>
 
-      {useLocal && modelStatus !== "ready" && (
+      {modelStatus !== "ready" && (
         <Panel className="flex items-center gap-3 p-3 text-sm">
           {modelStatus === "loading" ? (
             <>
@@ -179,9 +156,12 @@ export function TutorView() {
               </div>
             </>
           ) : modelStatus === "error" ? (
-            <p className="text-mute">
-              Local model unavailable{modelError ? `: ${modelError}` : ""}. Cloud tutor will be used if the API key is set.
-            </p>
+            <div className="flex flex-col gap-1 text-mute">
+              <p>Local model unavailable{modelError ? `: ${modelError}` : "."}</p>
+              <p className="text-xs">
+                No API key is used. Open the app in a regular browser tab, check that WebAssembly is enabled, and retry.
+              </p>
+            </div>
           ) : (
             <p className="text-mute">Preparing local model…</p>
           )}
@@ -207,11 +187,9 @@ export function TutorView() {
         <Panel className="flex min-h-[50dvh] flex-1 flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <p className="text-xs text-mute">
-              {useLocal && modelStatus === "ready"
+              {modelStatus === "ready"
                 ? "Running locally with Transformers.js · Qwen1.5-0.5B"
-                : useLocal
-                  ? "Local model loading…"
-                  : "Cloud tutor (xAI)"}
+                : "Local model loading…"}
             </p>
             {messages.length > 0 && (
               <button
@@ -283,7 +261,7 @@ export function TutorView() {
             ))}
             {busy && (
               <p className="text-sm text-mute">
-                {useLocal && modelStatus === "ready" ? "Thinking locally…" : "Reading the notes…"}
+                {modelStatus === "ready" ? "Thinking locally…" : "Reading the notes…"}
               </p>
             )}
           </div>

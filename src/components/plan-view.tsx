@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PomoPanel } from "@/components/app-shell";
-import { Button, EmptyLine, Field, Panel, fieldClass } from "@/components/ui";
+import { Button, EmptyLine, Field, Panel, fieldClass, selectClass } from "@/components/ui";
 import { todayKey, type PlanTask } from "@/lib/study/domain";
 import { addTask, deleteTask, generatePlan, toggleTask } from "@/lib/study/server";
 import { errText, useDesk, useRefreshDesk } from "@/lib/study/use-desk";
@@ -87,7 +87,7 @@ export function PlanView() {
                 <Field label="Subject">
                   <select
                     name="subjectId"
-                    className={fieldClass}
+                    className={selectClass}
                     value={activeId}
                     onChange={(event) => setSubjectId(event.target.value)}
                   >

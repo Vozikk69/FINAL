@@ -3,21 +3,46 @@ import { pipeline, env } from "@huggingface/transformers";
 // Prefer browser cache; models download once per origin.
 env.allowLocalModels = false;
 env.useBrowserCache = true;
+env.allowRemoteModels = true;
 
-// Run ONNX WASM in a proxy worker so inference does not freeze the UI thread.
-// (Falls back gracefully if the environment does not support it.)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const backends = (env as any).backends;
-  if (backends?.onnx?.wasm) {
-    backends.onnx.wasm.proxy = true;
-    // Slightly fewer threads keeps the tab responsive on weak devices.
-    if (typeof backends.onnx.wasm.numThreads === "number") {
-      backends.onnx.wasm.numThreads = Math.min(2, backends.onnx.wasm.numThreads || 2);
+/**
+ * Configure ONNX Runtime Web as safely as possible.
+ * Proxy workers + multi-threading often fail in iframes / strict CSP /
+ * missing COOP-COEP headers → "no available backend found".
+ * Single-thread, no proxy is the most compatible path.
+ */
+function configureWasmBackend() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const backends = (env as any).backends;
+    if (!backends?.onnx?.wasm) return;
+
+    // Disable proxy — it frequently throws [wasm] ErrorEvent in embedded previews.
+    backends.onnx.wasm.proxy = false;
+    // Single thread avoids SharedArrayBuffer / COOP-COEP requirements.
+    backends.onnx.wasm.numThreads = 1;
+    // Some environments need an explicit simd flag off for older Safari / restricted iframes.
+    if ("simd" in backends.onnx.wasm) {
+      backends.onnx.wasm.simd = false;
     }
+  } catch {
+    /* ignore — env shape differs between versions */
   }
-} catch {
-  /* ignore */
+}
+
+configureWasmBackend();
+
+/** True when the page is embedded (common cause of WASM backend failure). */
+export function isLikelyRestrictedContext(): boolean {
+  try {
+    if (typeof window === "undefined") return true;
+    if (window.self !== window.top) return true;
+    // Cross-origin frame access throws; treat as restricted.
+    void window.top?.location?.href;
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 type ProgressInfo = {
@@ -50,6 +75,18 @@ function yieldToUi(): Promise<void> {
   });
 }
 
+function friendlyWasmError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  // ErrorEvent objects often stringify poorly as "[object ErrorEvent]".
+  if (/no available backend|wasm|ErrorEvent|SharedArrayBuffer|COOP|COEP|\[object ErrorEvent\]/i.test(raw)) {
+    return "Local model unavailable in this browser context (WASM backend blocked). Open the app in a regular browser tab and check that WebAssembly is enabled.";
+  }
+  if (raw === "[object ErrorEvent]" || raw.includes("[object ErrorEvent]")) {
+    return "Local model unavailable in this browser context (WASM backend blocked). Open the app in a regular browser tab and check that WebAssembly is enabled.";
+  }
+  return raw || "Local model failed to load.";
+}
+
 /**
  * Lazy-load a small chat model suitable for browser (Transformers.js / ONNX).
  * Uses Qwen1.5-0.5B-Chat which is small enough for demo and has chat template support.
@@ -66,20 +103,38 @@ export async function loadLocalTutor(
   loadStatus = "loading";
   loadProgress = 0;
   lastError = null;
+  configureWasmBackend();
 
   loadPromise = (async () => {
     try {
       await yieldToUi();
       const modelId = "Xenova/Qwen1.5-0.5B-Chat";
-      const pipe = await pipeline("text-generation", modelId, {
-        progress_callback: (info: ProgressInfo) => {
-          if (typeof info.progress === "number") {
-            loadProgress = Math.min(99, Math.round(info.progress));
-            onProgress?.(loadProgress, info.status ?? "download");
-          }
-        },
-        dtype: "q4",
-      });
+
+      // dtype q4 is smaller; if it fails, retry without quantized dtype.
+      let pipe: TextGenPipeline;
+      try {
+        pipe = await pipeline("text-generation", modelId, {
+          progress_callback: (info: ProgressInfo) => {
+            if (typeof info.progress === "number") {
+              loadProgress = Math.min(99, Math.round(info.progress));
+              onProgress?.(loadProgress, info.status ?? "download");
+            }
+          },
+          dtype: "q4",
+        });
+      } catch (q4err) {
+        // Retry without q4 (fp32 / default) — some WASM builds reject quantized.
+        console.warn("q4 load failed, retrying default dtype", q4err);
+        pipe = await pipeline("text-generation", modelId, {
+          progress_callback: (info: ProgressInfo) => {
+            if (typeof info.progress === "number") {
+              loadProgress = Math.min(99, Math.round(info.progress));
+              onProgress?.(loadProgress, info.status ?? "download");
+            }
+          },
+        });
+      }
+
       generator = pipe;
       loadProgress = 100;
       loadStatus = "ready";
@@ -87,9 +142,9 @@ export async function loadLocalTutor(
       return pipe;
     } catch (err) {
       loadStatus = "error";
-      lastError = err instanceof Error ? err.message : String(err);
+      lastError = friendlyWasmError(err);
       loadPromise = null;
-      throw err;
+      throw new Error(lastError);
     }
   })();
 
@@ -169,4 +224,13 @@ export async function localTutorReply(input: {
 
 export function isLocalAiReady() {
   return loadStatus === "ready" && generator != null;
+}
+
+/** Reset so the next open can try again (e.g. after user toggles Local AI). */
+export function resetLocalAi() {
+  generator = null;
+  loadPromise = null;
+  loadProgress = 0;
+  loadStatus = "idle";
+  lastError = null;
 }

@@ -666,17 +666,8 @@ export const cardFromReply = createServerFn({ method: "POST" })
     const message = rows[0];
     if (!message || message.role !== "assistant") throw new Error("Reply not found.");
 
-    // Prefer local/offline extraction. Only use cloud AI when XAI_API_KEY is set
-    // and local parsing produces a weak card.
-    let card = cardFromReplyText(message.content);
-    if (process.env.XAI_API_KEY) {
-      try {
-        const { extractCard } = await import("@/lib/study/ai.server");
-        card = await extractCard(message.content);
-      } catch {
-        // keep local card
-      }
-    }
+    // Flashcards are extracted locally from the saved tutor reply; no API is called.
+    const card = cardFromReplyText(message.content);
     return insertCard(sql, context.userId, message.subject_id, card.front, card.back);
   });
 

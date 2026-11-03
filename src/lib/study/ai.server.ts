@@ -1,58 +1,6 @@
 import { draftPlan } from "@/lib/study/domain";
 
-type ChatBody = {
-  choices?: { message?: { content?: string | { type?: string; text?: string }[] } }[];
-  error?: { message?: string };
-};
-
-function textOf(content: string | { type?: string; text?: string }[] | undefined) {
-  if (typeof content === "string") return content.trim();
-  if (Array.isArray(content)) return content.map((part) => part.text ?? "").join("").trim();
-  return "";
-}
-
-function extractJson(raw: string) {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = fenced ? fenced[1] : raw;
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("The tutor did not return a plan.");
-  return JSON.parse(body.slice(start, end + 1)) as unknown;
-}
-
-async function grok(messages: { role: "system" | "user" | "assistant"; content: string }[], maxTokens: number) {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) throw new Error("The tutor is not available in this environment.");
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "grok-4.5",
-        temperature: 0.4,
-        max_tokens: maxTokens,
-        messages,
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (res.ok) {
-      const body = (await res.json()) as ChatBody;
-      const text = textOf(body.choices?.[0]?.message?.content);
-      if (!text) throw new Error("The tutor returned an empty reply.");
-      return text;
-    }
-    lastStatus = res.status;
-    const detail = await res.text().catch(() => "");
-    console.error("xai chat failed", res.status, detail.slice(0, 400));
-    if (res.status === 401 || res.status === 403) {
-      throw new Error("The tutor is unavailable right now. You can still write cards, tasks, and notes by hand.");
-    }
-    if (res.status !== 429 && res.status < 500) break;
-  }
-  throw new Error(`The tutor could not answer (${lastStatus || "network"}). Try again.`);
-}
-
+/** Offline-only fallback tutor. The interactive tutor itself runs in the browser model. */
 export async function tutorReply(input: {
   subjectTitle: string;
   description: string;
@@ -60,67 +8,62 @@ export async function tutorReply(input: {
   context: { source: string; text: string }[];
   question: string;
 }) {
-  const notes = input.context.length
-    ? input.context.map((chunk, index) => `[${index + 1}] (${chunk.source})\n${chunk.text}`).join("\n\n")
-    : "No notes were uploaded, or none matched this question.";
-  const system = `You are Lumen, a study tutor for "${input.subjectTitle}".
-${input.description ? `Subject notes from the student: ${input.description}` : ""}
-Rules:
-- Be concrete and short. No pep talks, no "certainly", no filler openings.
-- When the notes below are relevant, ground the answer in them and cite them as [1], [2].
-- If the notes do not cover the question, say so in one clause, then teach from general knowledge.
-- Use Markdown: short paragraphs and bullets. One worked example when it helps.
-- End explanatory answers with a single check-your-understanding question.
+  const note = input.context[0]?.text;
+  if (note) {
+    const excerpt = note.slice(0, 900);
+    return `I can help you study **${input.subjectTitle}**. I found this related material in your notes:\n\n${excerpt}\n\nTry asking a more specific question about this passage, or open the local tutor in your browser for generated explanations.`;
+  }
+  return `I can help organize your study of **${input.subjectTitle}**, but the browser-based local model is needed for open-ended explanations. Try reloading the tutor so it can finish downloading its model.\n\nYour question: ${input.question.slice(0, 300)}`;
+}
 
-Student notes:
-${notes}`;
-  const history = input.history.slice(-10).map((message) => ({
-    role: message.role,
-    content: message.content.slice(0, 2000),
+function cleanSentence(value: string) {
+  return value.replace(/^[-*•\d.)\s]+/, "").replace(/\s+/g, " ").trim();
+}
+
+/** Create useful extractive cards from notes without calling an external service. */
+export async function generateCardsFromMaterial(input: { subjectTitle: string; material: string; count: number }) {
+  const blocks = input.material
+    .replace(/\r/g, "")
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map(cleanSentence)
+    .filter((sentence) => sentence.length >= 35 && sentence.length <= 800);
+
+  const seen = new Set<string>();
+  const cards: { front: string; back: string }[] = [];
+  for (const sentence of blocks) {
+    const key = sentence.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const definition = sentence.match(/^(?:a|an|the)?\s*([A-Z][\w-]{2,40})\s+(?:is|are|means|refers to|describes)\s+(.+)$/i);
+    const front = definition
+      ? `What is ${definition[1]}?`
+      : `What should you remember about ${input.subjectTitle}?`;
+    const back = sentence.slice(0, 800);
+    if (!cards.some((card) => card.back.toLowerCase() === back.toLowerCase())) {
+      cards.push({ front, back });
+    }
+    if (cards.length >= input.count) break;
+  }
+
+  if (!cards.length) {
+    throw new Error("I couldn't find enough complete facts in these notes. Add a few sentences or create cards manually.");
+  }
+  // Make generic prompts distinct when the source has no definition-like sentences.
+  return cards.map((card, index) => ({
+    ...card,
+    front: card.front.startsWith("What should you remember")
+      ? `Key point ${index + 1}: ${card.back.slice(0, 90)}${card.back.length > 90 ? "…" : ""}`
+      : card.front,
   }));
-  return grok(
-    [{ role: "system", content: system }, ...history, { role: "user", content: input.question.slice(0, 4000) }],
-    700,
-  );
 }
 
 export async function extractCard(reply: string) {
-  const text = await grok(
-    [
-      {
-        role: "system",
-        content:
-          'Turn a tutor reply into one atomic flashcard. Ignore any closing check question. Return JSON only: {"front":"question","back":"1-3 sentence answer"}.',
-      },
-      { role: "user", content: reply.slice(0, 6000) },
-    ],
-    300,
-  );
-  const parsed = extractJson(text) as { front?: string; back?: string };
-  const front = (parsed.front ?? "").trim();
-  const back = (parsed.back ?? "").trim();
-  if (!front || !back) throw new Error("Could not make a card from that reply.");
-  return { front: front.slice(0, 300), back: back.slice(0, 800) };
-}
-
-export async function generateCardsFromMaterial(input: { subjectTitle: string; material: string; count: number }) {
-  const text = await grok(
-    [
-      {
-        role: "system",
-        content: `Create ${input.count} flashcards for "${input.subjectTitle}". Each card tests one fact. Fronts are questions. Backs are 1-3 sentences. No duplicates. Return JSON only: {"cards":[{"front":"...","back":"..."}]}.`,
-      },
-      { role: "user", content: input.material.slice(0, 12000) },
-    ],
-    1200,
-  );
-  const parsed = extractJson(text) as { cards?: { front?: string; back?: string }[] };
-  const cards = (parsed.cards ?? [])
-    .map((card) => ({ front: (card.front ?? "").trim().slice(0, 300), back: (card.back ?? "").trim().slice(0, 800) }))
-    .filter((card) => card.front && card.back)
-    .slice(0, input.count);
-  if (!cards.length) throw new Error("Could not generate flashcards from that material.");
-  return cards;
+  const cleaned = reply.replace(/\*\*/g, "").trim();
+  const lines = cleaned.split(/\n+/).map(cleanSentence).filter(Boolean);
+  const answer = lines.filter((line) => !line.endsWith("?")).join(" ").slice(0, 800) || cleaned.slice(0, 800);
+  const question = lines.find((line) => line.endsWith("?")) || `Explain the main idea: ${lines[0]?.slice(0, 100) ?? "this topic"}?`;
+  if (!answer || !question) throw new Error("Could not make a card from that reply.");
+  return { front: question.slice(0, 300), back: answer };
 }
 
 export async function generateStudyPlan(input: {
@@ -131,35 +74,5 @@ export async function generateStudyPlan(input: {
   examDate: string;
   hoursPerDay: number;
 }) {
-  const fallback = () => ({ tasks: draftPlan(input), source: "draft" as const });
-  try {
-    const text = await grok(
-      [
-        {
-          role: "system",
-          content:
-            'Return JSON only: {"tasks":[{"title":"specific study task","dueDate":"YYYY-MM-DD"}]}. No markdown.',
-        },
-        {
-          role: "user",
-          content: `Build a day-by-day study plan for "${input.title}".
-Today is ${input.today}. The exam is ${input.examDate}. The student can study about ${input.hoursPerDay} hours a day.
-${input.description ? `Description: ${input.description}` : ""}
-${input.topics ? `Topics:\n${input.topics}` : "Infer a sensible syllabus."}
-Rules: spread work from today through the day before the exam; finish with review and a practice exam. 1-3 tasks a day, sized to the hours. Revisit earlier topics. Maximum 36 tasks. Every dueDate must be between ${input.today} and ${input.examDate} inclusive.`,
-        },
-      ],
-      1400,
-    );
-    const parsed = extractJson(text) as { tasks?: { title?: string; dueDate?: string }[] };
-    const tasks = (parsed.tasks ?? [])
-      .map((task) => ({ title: (task.title ?? "").trim().slice(0, 180), dueDate: (task.dueDate ?? "").trim() }))
-      .filter((task) => task.title && task.dueDate >= input.today && task.dueDate <= input.examDate && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate))
-      .slice(0, 40);
-    if (tasks.length < 2) return fallback();
-    return { tasks, source: "tutor" as const };
-  } catch (error) {
-    console.error("plan fallback", error);
-    return fallback();
-  }
+  return { tasks: draftPlan(input), source: "draft" as const };
 }

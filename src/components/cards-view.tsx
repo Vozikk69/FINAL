@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button, EmptyLine, Field, Meter, Modal, Panel, fieldClass } from "@/components/ui";
+import { Button, EmptyLine, Field, Meter, Modal, Panel, fieldClass, selectClass } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import {
   REVIEW_BUTTONS,
@@ -72,7 +72,7 @@ export function CardsView({ startReview }: { startReview: boolean }) {
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select className={`${fieldClass} max-w-xs`} value={subjectId} onChange={(event) => setSubjectId(event.target.value)}>
+        <select className={`${selectClass} max-w-xs`} value={subjectId} onChange={(event) => setSubjectId(event.target.value)}>
           <option value="all">All subjects</option>
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
@@ -312,7 +312,7 @@ function CardDialog({
       >
         {!initial && (
           <Field label="Subject">
-            <select name="subjectId" className={fieldClass} defaultValue={subjects[0]?.id}>
+            <select name="subjectId" className={selectClass} defaultValue={subjects[0]?.id}>
               {subjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.title}
@@ -374,7 +374,7 @@ function GenerateDialog({
         }}
       >
         <Field label="Subject">
-          <select name="subjectId" className={fieldClass} defaultValue={defaultSubjectId}>
+          <select name="subjectId" className={selectClass} defaultValue={defaultSubjectId}>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
                 {subject.title}

@@ -31,6 +31,10 @@ export function Button({
 export const fieldClass =
   "min-h-11 w-full rounded-md border border-line bg-ink px-3 text-base text-parchment outline-none placeholder:text-mute focus:border-brass";
 
+/** Same as fieldClass with extra right padding so the custom select chevron does not overlap text. */
+export const selectClass =
+  "min-h-11 w-full rounded-md border border-line bg-ink px-3 pr-10 text-base text-parchment outline-none focus:border-brass";
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm text-mute">

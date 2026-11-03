@@ -66,7 +66,7 @@ export function PomoPanel({
       <label className="mt-3 flex flex-col gap-1 text-xs text-mute">
         Subject
         <select
-          className="min-h-11 rounded-md border border-line bg-panel px-2 text-sm text-parchment"
+          className="min-h-11 w-full rounded-md border border-line bg-panel px-3 pr-10 text-sm text-parchment outline-none focus:border-brass"
           value={pomo.subjectId ?? ""}
           onChange={(event) => pomoSetSubject(event.target.value || null)}
         >
