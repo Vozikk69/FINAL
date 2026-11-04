@@ -1,90 +1,53 @@
-import { useState, type ReactNode } from "react";
-import { Navigate, Link } from "@tanstack/react-router";
-import { authEnabled, signOut } from "./client";
-import { resolveSignInGateState } from "./sign-in-gate";
-import { useCurrentUser, useCurrentUserState } from "./use-current-user";
+import { Link, Navigate } from "@tanstack/react-router";
+import { authClient } from "./client";
+import { useCurrentUserState } from "./use-current-user";
 
-export const SIGN_IN_PATH = "/login";
-
-export function SignedIn({ children }: { children: ReactNode }) {
-  const { user } = useCurrentUserState();
-  return user ? <>{children}</> : null;
-}
-
-export function SignedOut({ children }: { children: ReactNode }) {
-  const { user, isPending } = useCurrentUserState();
-  if (isPending || user) return null;
-  return <>{children}</>;
-}
-
-export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
-  return <Navigate to={to} />;
-}
-
-export function SignInGate({
-  children,
-  fallback,
-}: {
-  children: ReactNode;
-  fallback?: ReactNode;
-}) {
-  const { user, isPending } = useCurrentUserState();
-  const state = resolveSignInGateState({ isPending, hasUser: user !== null });
-  if (state === "pending") return null;
-  if (state === "signed_in") return <>{children}</>;
-  return (
-    <>
-      {fallback ?? (
-        <div className="flex w-full max-w-sm flex-col gap-2">
-          <Link
-            to={SIGN_IN_PATH}
-            className="w-full cursor-pointer rounded-md border border-neutral-300 px-4 py-2 text-center hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-          >
-            Sign in with email
-          </Link>
-        </div>
-      )}
-    </>
-  );
-}
-
-export function SignInButtons() {
-  return (
-    <div className="flex w-full max-w-sm flex-col gap-2">
-      <Link
-        to={SIGN_IN_PATH}
-        className="w-full cursor-pointer rounded-md border border-neutral-300 px-4 py-2 text-center hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-      >
-        Sign in with email
-      </Link>
-    </div>
-  );
+export function RedirectToSignIn() {
+  return <Navigate to="/login" />;
 }
 
 export function UserButton() {
-  const user = useCurrentUser();
-  const [signingOut, setSigningOut] = useState(false);
+  const { user } = useCurrentUserState();
   if (!user) return null;
-  const label = user.displayName ?? user.primaryEmail ?? "Account";
+
+  async function signOut() {
+    try {
+      await authClient.signOut();
+    } catch {
+      // ignore
+    }
+    window.location.href = "/login";
+  }
+
+  const label = user.displayName || user.primaryEmail || "Account";
+
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brass text-sm font-medium text-on-brass">
-        {label.charAt(0).toUpperCase()}
-      </span>
-      <span className="hidden min-w-0 truncate text-sm font-medium md:inline">{label}</span>
-      {authEnabled && (
+    <div className="relative group">
+      <button
+        type="button"
+        className="flex min-h-11 items-center gap-2 rounded-md border border-line bg-panel px-3 text-sm text-parchment"
+        title={label}
+      >
+        <span className="grid size-7 place-items-center rounded-full bg-brass/20 text-xs font-semibold text-brass">
+          {(label[0] || "?").toUpperCase()}
+        </span>
+        <span className="hidden max-w-[8rem] truncate sm:inline">{label}</span>
+      </button>
+      <div className="absolute right-0 top-full z-50 mt-1 hidden min-w-[10rem] rounded-md border border-line bg-ink p-1 shadow-lg group-focus-within:block group-hover:block">
         <button
           type="button"
-          disabled={signingOut}
-          onClick={() => {
-            setSigningOut(true);
-            void signOut().catch(() => setSigningOut(false));
-          }}
-          className="min-h-11 shrink-0 cursor-pointer px-1 text-sm text-mute underline-offset-4 hover:text-parchment hover:underline disabled:cursor-wait disabled:no-underline"
+          onClick={signOut}
+          className="block w-full rounded px-3 py-2 text-left text-sm text-mute hover:bg-panel hover:text-parchment"
         >
-          {signingOut ? "Signing out…" : "Sign out"}
+          Sign out
         </button>
-      )}
+        <Link
+          to="/login"
+          className="block rounded px-3 py-2 text-sm text-mute hover:bg-panel hover:text-parchment"
+        >
+          Account
+        </Link>
+      </div>
     </div>
   );
 }

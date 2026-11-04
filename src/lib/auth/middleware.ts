@@ -9,9 +9,7 @@ export const authMiddleware = createMiddleware({ type: "function" })
     return next({ sendContext: { bearerToken: undefined as string | undefined } });
   })
   .server(async ({ next }) => {
-    const { assertSameSiteRequest } = await import("./isolation.server");
     const { requireUserId } = await import("./verify.server");
-    assertSameSiteRequest();
     const userId = await requireUserId();
     return next({ context: { userId } });
   });
