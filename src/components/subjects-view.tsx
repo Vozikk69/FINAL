@@ -249,8 +249,8 @@ function NoteUpload({ subjectId }: { subjectId: string }) {
         const input = event.currentTarget.elements.namedItem("file");
         const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
         if (!file) return;
-        if (file.size > 50_000_000) {
-          toast.error("File is larger than 50 MB.");
+        if (file.size > 4_000_000) {
+          toast.error("File is larger than 4 MB.");
           return;
         }
         setBusy(true);
@@ -271,7 +271,7 @@ function NoteUpload({ subjectId }: { subjectId: string }) {
         <Upload className="size-4 text-brass" />
         Upload notes
       </p>
-      <p className="mt-1 text-xs text-mute">PDF, TXT, or Markdown. Up to 50 MB.</p>
+      <p className="mt-1 text-xs text-mute">PDF, TXT, or Markdown. Up to 4 MB.</p>
       <input name="file" type="file" accept=".pdf,.txt,.md,.markdown,text/plain,application/pdf" className="mt-3 block w-full text-sm text-mute file:mr-3 file:min-h-11 file:rounded-md file:border-0 file:bg-brass file:px-3 file:font-semibold file:text-on-brass" />
       <Button className="mt-3" type="submit" disabled={busy}>
         {busy ? "Reading…" : "Add to subject"}
