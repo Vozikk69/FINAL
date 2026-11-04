@@ -249,18 +249,16 @@ function NoteUpload({ subjectId }: { subjectId: string }) {
         const input = event.currentTarget.elements.namedItem("file");
         const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
         if (!file) return;
-        if (file.size > 50 * 1024 * 1024) {
-          toast.error("File is larger than 50 MB. Try a smaller PDF.");
+        if (file.size > 50_000_000) {
+          toast.error("File is larger than 50 MB.");
           return;
         }
-        // Keep a stable reference: currentTarget is cleared after an async event handler yields.
-        const form = event.currentTarget;
         setBusy(true);
         try {
           const base64 = await fileToBase64(file);
           const saved = await ingestNote({ data: { subjectId, name: file.name, mime: file.type, base64 } });
           toast.success(`${saved.name} · ${saved.chunkCount} passages`);
-          form.reset();
+          event.currentTarget.reset();
           await refresh();
         } catch (error) {
           toast.error(errText(error));

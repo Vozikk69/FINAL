@@ -802,7 +802,7 @@ export const deleteTask = createServerFn({ method: "POST" })
 
 async function textFromUpload(name: string, mime: string, base64: string) {
   const bytes = Buffer.from(base64, "base64");
-  if (bytes.length > 50 * 1024 * 1024) throw new Error("File is larger than 50 MB.");
+  if (bytes.length > 50_000_000) throw new Error("File is larger than 50 MB.");
   const lower = name.toLowerCase();
   if (lower.endsWith(".pdf") || mime === "application/pdf") {
     const unpdf = (await import("unpdf")) as unknown as {
@@ -821,8 +821,7 @@ export const ingestNote = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { subjectId: string; name: string; mime?: string; base64: string }) => {
     if (!input.subjectId || !input.name || !input.base64) throw new Error("Choose a file.");
-    // Base64 expands a 50 MiB file to about 69.91 million characters.
-    if (input.base64.length > 70000000) throw new Error("File is larger than 50 MB.");
+    if (input.base64.length > 70_000_000) throw new Error("File is larger than 50 MB.");
     return { subjectId: input.subjectId, name: input.name.slice(0, 180), mime: input.mime ?? "", base64: input.base64 };
   })
   .handler(async ({ context, data }) => {
