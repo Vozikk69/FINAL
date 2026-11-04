@@ -61,8 +61,8 @@ self.addEventListener("message", async (event: MessageEvent<Incoming>) => {
       return;
     }
     const output = await gen(message.prompt, {
-      max_new_tokens: 96,
-      temperature: 0.2,
+      max_new_tokens: 140,
+      temperature: 0.1,
       do_sample: false,
       return_full_text: false,
     });

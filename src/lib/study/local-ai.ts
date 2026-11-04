@@ -94,15 +94,43 @@ function buildPrompt(input: {
   context: { source: string; text: string }[];
   question: string;
 }) {
-  const notes = input.context.length
-    ? input.context.slice(0, 2).map((c, i) => `[${i + 1}] (${c.source})\n${c.text.slice(0, 350)}`).join("\n\n")
-    : "No notes matched this question.";
-  const system = `You are Lumen, a helpful tutor for ${input.subjectTitle}. ${input.description.slice(0, 200)}\nBe accurate and concise (under 100 words). Use the notes if relevant and cite [1] or [2]. If notes do not cover the question, explain using general knowledge. End with one short check question.\nNotes:\n${notes}`;
+  const hasNotes = input.context.length > 0;
+  const notes = hasNotes
+    ? input.context
+        .slice(0, 3)
+        .map((c, i) => `[${i + 1}] (${c.source})\n${c.text.slice(0, 450)}`)
+        .join("\n\n")
+    : "(no matching notes)";
+
+  // Tiny local models hallucinate hard if allowed free general knowledge.
+  // Force them to stay on the uploaded notes.
+  const system = hasNotes
+    ? [
+        `You are Lumen, a careful study tutor for "${input.subjectTitle}".`,
+        input.description ? `Subject context: ${input.description.slice(0, 160)}` : "",
+        "RULES:",
+        "- Answer ONLY using the Notes below. Do not invent facts, dates, countries, or wars that are not in the notes.",
+        "- If the notes do not contain the answer, say exactly: \"I don't see that in your notes. Try uploading more material or rephrasing.\"",
+        "- Be concise (under 90 words). Prefer short factual sentences.",
+        "- Cite note numbers like [1] when you use them.",
+        "- Do not end with a quiz question.",
+        "",
+        "Notes:",
+        notes,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : [
+        `You are Lumen, a study tutor for "${input.subjectTitle}".`,
+        "The student has not uploaded matching notes for this question.",
+        "Reply in one short sentence: ask them to upload notes or paste the relevant text, and do not invent historical or scientific facts.",
+      ].join("\n");
+
   let prompt = `<|im_start|>system\n${system}<|im_end|>\n`;
   for (const message of input.history.slice(-2)) {
-    prompt += `<|im_start|>${message.role}\n${message.content.slice(0, 350)}<|im_end|>\n`;
+    prompt += `<|im_start|>${message.role}\n${message.content.slice(0, 280)}<|im_end|>\n`;
   }
-  return `${prompt}<|im_start|>user\n${input.question.slice(0, 700)}<|im_end|>\n<|im_start|>assistant\n`;
+  return `${prompt}<|im_start|>user\n${input.question.slice(0, 600)}<|im_end|>\n<|im_start|>assistant\n`;
 }
 
 export async function localTutorReply(input: {

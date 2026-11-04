@@ -572,52 +572,66 @@ function cardFromReplyText(content: string): { front: string; back: string } {
     .trim();
   if (!cleaned) throw new Error("That reply is empty.");
 
+  // Refuse to turn "I don't know / not in notes" replies into study cards.
+  const lower = cleaned.toLowerCase();
+  if (
+    lower.includes("don't see that in your notes") ||
+    lower.includes("do not see that in your notes") ||
+    lower.includes("not in your notes") ||
+    lower.includes("upload more material") ||
+    lower.includes("i don't know") ||
+    lower.startsWith("i cannot") ||
+    lower.startsWith("i can't")
+  ) {
+    throw new Error(
+      "That reply does not contain a solid fact from your notes. Ask the tutor about something that is in the notes, or generate cards from notes instead.",
+    );
+  }
+
   const lines = cleaned
     .split(/\n+/)
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => l.replace(/^[-*•]\s+/, "").replace(/^\d+[.)]\s+/, ""));
 
-  // 1) Prefer a short closing check-question as the front.
+  // Prefer a short check-question already in the reply as the front.
   let front = "";
   let backBody = cleaned;
   const qIdx = [...lines]
     .map((l, i) => ({ l, i }))
     .reverse()
-    .find(({ l }) => /\?\s*$/.test(l) && l.length >= 12 && l.length <= 180);
+    .find(({ l }) => /\?\s*$/.test(l) && l.length >= 12 && l.length <= 160);
   if (qIdx) {
     front = qIdx.l;
     backBody = lines.filter((_, i) => i !== qIdx.i).join("\n").trim();
   }
 
-  // 2) Otherwise build a real question from a definition-like first sentence.
-  //    "An alkane is a saturated hydrocarbon..." → "What is an alkane?"
+  // Definition-style first sentence → "What is X?"
   if (!front) {
     const first = (lines[0] ?? cleaned).split(/(?<=[.!])\s+/)[0]?.trim() ?? "";
     const def =
       first.match(
-        /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are|was|were)\b/i,
+        /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40}(?:\s+[A-Za-z][A-Za-z0-9\-]{1,30}){0,3})\s+(?:is|are|was|were|refers to)\b/i,
       ) ||
       first.match(
-        /^([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are|was|were)\b/i,
+        /^([A-Za-z][A-Za-z0-9\-]{1,40}(?:\s+[A-Za-z][A-Za-z0-9\-]{1,30}){0,3})\s+(?:is|are|was|were|refers to)\b/i,
       );
     if (def) {
-      const term = def[1];
+      const term = def[1].trim();
       const article = /^[aeiou]/i.test(term) ? "an" : "a";
-      front = `What is ${article} ${term}?`;
+      front = term.split(/\s+/).length <= 4 ? `What is ${article} ${term}?` : `What is ${term}?`;
       backBody = cleaned;
     } else if (first.endsWith("?")) {
       front = first;
       backBody = cleaned.slice(first.length).trim() || cleaned;
     } else {
-      // Generic but NOT "key idea: <answer>"
-      const topic = first.replace(/[.!]+$/, "").slice(0, 80).trim();
-      front = topic ? `Explain: ${topic}?`.replace("??", "?") : "What is the main point of this note?";
+      // Do NOT paste the whole answer into the front ("Explain: <answer>?")
+      // — that was producing cards like the Opium War example.
+      front = "What is the key point from this explanation?";
       backBody = cleaned;
     }
   }
 
-  // Strip the front question from the back if it was left in.
   if (front) {
     backBody = backBody
       .split("\n")
@@ -626,28 +640,36 @@ function cardFromReplyText(content: string): { front: string; back: string } {
       .trim();
   }
 
-  // Never put the answer text into the front.
   let back = backBody.replace(/\n{3,}/g, "\n\n").trim();
-  if (!back || back.length < 8) back = cleaned;
-  // If front accidentally equals / contains most of back, force a short question form.
+  if (!back || back.length < 12) back = cleaned;
+
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (norm(front).includes(norm(back).slice(0, 40)) || norm(back).startsWith(norm(front).replace(/^what is (an?|the)\s+/i, ""))) {
-    // keep front as question only; back stays full explanation
-  }
-  if (front.length > 120 && !front.endsWith("?")) {
-    front = `What should you remember about this?`;
+  if (front.length > 140 && !front.endsWith("?")) {
+    front = "What is the key point from this explanation?";
   }
 
   front = front.slice(0, 220).trim();
   back = back.slice(0, 800).trim();
   if (!front || !back) throw new Error("Could not make a card from that reply.");
-  // Final guard: front must not be a near-copy of the back.
-  if (norm(front) === norm(back) || (back.startsWith(front.replace(/^What is the key idea:\s*/i, "")) && front.length > 40)) {
+
+  // Front must not be a near-copy of the back.
+  if (
+    norm(front) === norm(back) ||
+    (front.length > 40 && norm(back).startsWith(norm(front).slice(0, 50)))
+  ) {
     const termMatch = back.match(
-      /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are)\b/i,
+      /^(?:an?|the)\s+([A-Za-z][A-Za-z0-9\-]{1,40})\s+(?:is|are|refers to)\b/i,
     );
-    front = termMatch ? `What is ${/^[aeiou]/i.test(termMatch[1]) ? "an" : "a"} ${termMatch[1]}?` : "What is the main idea?";
+    front = termMatch
+      ? `What is ${/^[aeiou]/i.test(termMatch[1]) ? "an" : "a"} ${termMatch[1]}?`
+      : "What is the main idea?";
   }
+
+  // Reject extremely short or nonsense backs.
+  if (back.split(/\s+/).length < 6) {
+    throw new Error("That reply is too short to make a useful card. Ask a clearer question about your notes.");
+  }
+
   return { front, back };
 }
 
